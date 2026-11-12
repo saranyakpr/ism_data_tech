@@ -1,4 +1,4 @@
-import type { Job as DatabaseJob, EmploymentType, WorkMode } from "@/lib/supabase/database.types";
+import type { Job as DatabaseJob, EmploymentType, WorkMode } from "@/types/database";
 
 export type PublicJob = Pick<
   DatabaseJob,

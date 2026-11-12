@@ -1,10 +1,33 @@
 "use client";
 import { motion } from "framer-motion";
-import { Globe2, Handshake, Heart, ShieldCheck, TrendingUp, Users, type LucideIcon } from "lucide-react";
+import {
+  Globe2,
+  Handshake,
+  Heart,
+  ShieldCheck,
+  TrendingUp,
+  Users,
+  LockKeyhole,
+  Video,
+  Smartphone,
+  FileCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { stagger, item, fadeUp, vp } from "@/lib/motion";
 import { WHY_CHOOSE } from "@/lib/data";
 
-const ICONS: Record<string, LucideIcon> = { ShieldCheck, Users, Globe2, TrendingUp, Handshake, Heart };
+const ICONS: Record<string, LucideIcon> = {
+  ShieldCheck,
+  Users,
+  Globe2,
+  TrendingUp,
+  Handshake,
+  Heart,
+  LockKeyhole,
+  Video,
+  Smartphone,
+  FileCheck,
+};
 const ACCS = ["var(--blue)","var(--cyan)","#8ca4bc","var(--blue)","var(--cyan)","#8ca4bc"];
 
 export default function WhyChoose() {

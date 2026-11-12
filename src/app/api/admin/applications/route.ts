@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAdminApiSession, adminApiJson } from "@/lib/admin-api-auth";
 import { sql } from "@/lib/neon";
-import type { Application, ApplicationStatus } from "@/lib/supabase/database.types";
+import type { Application, ApplicationStatus } from "@/types/database";
 
 const PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;

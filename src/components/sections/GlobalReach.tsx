@@ -5,12 +5,18 @@ import { stagger, item, fadeLeft, vp } from "@/lib/motion";
 import { CLIENT_LOCATIONS } from "@/lib/data";
 
 const NODES = [
-  { id:"india",  label:"India HQ",     x:64, y:52, r:10, main:true,  c:"var(--blue)" },
+  { id:"india",  label:"India HQ",      x:64, y:52, r:10, main:true,  c:"var(--blue)" },
   { id:"usa",    label:"United States", x:16, y:35, r:7,  main:false, c:"var(--cyan)" },
+  { id:"uk",     label:"United Kingdom", x:39, y:19, r:7, main:false, c:"var(--cyan)" },
   { id:"france", label:"France",        x:47, y:27, r:7,  main:false, c:"#8ca4bc" },
   { id:"aus",    label:"Australia",     x:78, y:70, r:7,  main:false, c:"var(--cyan)" },
 ];
-const LINES=[["india","usa"],["india","france"],["india","aus"]];
+const LINES = [
+  ["india", "usa"],
+  ["india", "uk"],
+  ["india", "france"],
+  ["india", "aus"],
+];
 const g=(id:string)=>NODES.find(n=>n.id===id)!;
 
 export default function GlobalReach() {

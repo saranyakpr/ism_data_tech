@@ -5,23 +5,22 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
 import { Send, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
-
-const SERVICES_LIST = [
-  "EPUB Services","International Voice Support (UK & USA Tax Filing)",
-  "International Semi-Voice (Debit Support)","Healthcare Data Entry",
-  "Spanish Data Projects","Filipino Data Projects","Ceylon Data Projects",
-  "Indexing Handwritten Baptism Records","Burial Records Projects",
-  "Vital Records Processing – USA","Newspaper Zoning Projects",
-  "Printed English Books Extraction","Australian Business Leads Collection",
-  "Medical Billing","USA Documentation","Australian Scraping",
-  "XML Processing","Typing Projects","Other / Multiple Services",
-];
+import { OTHER_SERVICE_OPTION, SERVICES } from "@/lib/data";
 
 const schema = z.object({
   name:z.string().min(2,"Name must be at least 2 characters"),
   company:z.string().optional(),
   email:z.string().email("Please enter a valid email"),
-  phone:z.string().min(7,"Please enter a valid phone number"),
+  phone: z
+  .string()
+  .trim()
+  .refine(
+    (value) => {
+      const digits = value.replace(/\D/g, "");
+      return digits.length >= 7 && digits.length <= 15;
+    },
+    "Please enter a valid phone number (7–15 digits)"
+  ),
   country:z.string().min(2,"Please enter your country"),
   service:z.string().min(1,"Please select a service"),
   requirements:z.string().min(20,"Please describe your requirements (min 20 characters)"),
@@ -43,14 +42,36 @@ export default function ContactForm() {
   const [err,setErr]=useState("");
   const {register,handleSubmit,reset,formState:{errors}}=useForm<F>({resolver:zodResolver(schema)});
 
-  const onSubmit=async(data:F)=>{
-    setStatus("loading");
-    try{
-      const res=await fetch("/api/contact",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
-      if(!res.ok)throw new Error();
-      setStatus("success");reset();
-    }catch{setStatus("error");setErr("Something went wrong. Please email official@ismdatatech.com directly.");}
-  };
+const onSubmit = async (data: F) => {
+  setStatus("loading");
+  setErr("");
+
+  try {
+    const res = await fetch("/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
+    const result = await res.json();
+
+    if (!res.ok) {
+      throw new Error(
+        result.error || "Unable to send your enquiry. Please try again."
+      );
+    }
+
+    setStatus("success");
+    reset();
+  } catch (error) {
+    setStatus("error");
+    setErr(
+      error instanceof Error
+        ? error.message
+        : "Something went wrong. Please email official@ismdatatech.com directly."
+    );
+  }
+};
 
   if(status==="success") return (
     <motion.div initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} className="text-center py-14">
@@ -59,7 +80,9 @@ export default function ContactForm() {
         <CheckCircle size={30} style={{color:"var(--ism-accent)"}}/>
       </div>
       <h3 style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:22,color:"var(--ism-navy)",marginBottom:8}}>Enquiry Sent!</h3>
-      <p style={{color:"var(--text2)",marginBottom:20}}>We&apos;ll get back to you within 24 hours.</p>
+      <p style={{color:"var(--text2)",marginBottom:20}}>
+  Thank you for contacting ISM Data Technology. Your enquiry has been received.
+</p>
       <button onClick={()=>setStatus("idle")} className="btn-outline text-sm">Send Another</button>
     </motion.div>
   );
@@ -85,7 +108,10 @@ export default function ContactForm() {
         <div><L req>Service Interested In</L>
           <select {...register("service")} className="field">
             <option value="">Select…</option>
-            {SERVICES_LIST.map(s=><option key={s} value={s}>{s}</option>)}
+            {SERVICES.map(service => (
+              <option key={service.id} value={service.title}>{service.title}</option>
+            ))}
+            <option value={OTHER_SERVICE_OPTION}>{OTHER_SERVICE_OPTION}</option>
           </select><E msg={errors.service?.message}/>
         </div>
       </div>

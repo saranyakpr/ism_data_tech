@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAdminApiSession, adminApiJson } from "@/lib/admin-api-auth";
 import { isSameOriginAdminRequest } from "@/lib/admin-auth";
 import { sql } from "@/lib/neon";
-import type { Application } from "@/lib/supabase/database.types";
+import type { Application } from "@/types/database";
 
 const paramsSchema = z.object({
   id: z.string().uuid(),

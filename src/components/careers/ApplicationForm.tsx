@@ -14,7 +14,16 @@ const schema = z.object({
   jobId:       z.string().uuid("Please select an open position"),
   fullName:    z.string().min(2,"Name must be at least 2 characters"),
   email:       z.string().email("Please enter a valid email"),
-  phone:       z.string().min(7,"Please enter a valid phone number"),
+  phone: z
+  .string()
+  .trim()
+  .refine(
+    (value) => {
+      const digits = value.replace(/\D/g, "");
+      return digits.length >= 7 && digits.length <= 15;
+    },
+    "Please enter a valid phone number (7–15 digits)"
+  ),
   location:    z.string().min(2,"Please enter your current location"),
   experience:  z.string().min(1,"Please select your experience level"),
   education:   z.string().min(2,"Please enter your highest qualification"),

@@ -13,7 +13,7 @@ import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
 import ScrollProgress from "@/components/ui/ScrollProgress";
 import { sql } from "@/lib/neon";
-import type { Job } from "@/lib/supabase/database.types";
+import type { Job } from "@/types/database";
 import {
   EMPLOYMENT_TYPE_LABELS,
   WORK_MODE_LABELS,

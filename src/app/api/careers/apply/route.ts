@@ -1,259 +1,349 @@
-import { randomUUID } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
-import { fileTypeFromBuffer } from "file-type";
-import { Resend } from "resend";
+
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { sql } from "@/lib/neon";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import type { Application, Job } from "@/lib/supabase/database.types";
+import { uploadResume, deleteResume } from "@/lib/storage";
 
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
-const MAX_BASE64_LENGTH = Math.ceil(MAX_FILE_BYTES / 3) * 4 + 128;
-const schema = z.object({
+const applicationSchema = z.object({
   jobId: z.string().uuid(),
-  fullName: z.string().trim().min(2).max(160),
+  fullName: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(254),
-  phone: z.string().trim().min(7).max(40),
-  location: z.string().trim().min(2).max(160),
-  experience: z.string().trim().min(1).max(120),
-  education: z.string().trim().min(2).max(160),
-  skills: z.string().trim().min(10).max(5000),
-  linkedin: z.string().trim().max(500).optional().default(""),
-  portfolio: z.string().trim().max(500).optional().default(""),
-  coverLetter: z.string().trim().max(10000).optional().default(""),
+  phone: z.string().trim().min(7).max(20),
+  location: z.string().trim().min(2).max(150),
+  experience: z.string().trim().max(100).optional().default(""),
+  education: z.string().trim().min(2).max(150),
+  skills: z.string().trim().min(2).max(1000),
+  linkedin: z.string().trim().optional().default(""),
+  portfolio: z.string().trim().optional().default(""),
+  coverLetter: z.string().trim().max(5000).optional().default(""),
   consent: z.literal(true),
-  resumeData: z.string().min(1).max(MAX_BASE64_LENGTH),
-  resumeName: z.string().trim().min(1).max(180),
-}).strict();
+  resume: z.string().optional(),
+  resumeData: z.string().optional(),
+  resumeName: z.string().min(1).max(180),
+  resumeType: z.string().optional(),
+});
 
-export async function POST(request: NextRequest) {
-  if (!request.headers.get("content-type")?.includes("application/json")) {
-    return NextResponse.json({ error: "Expected a JSON request." }, { status: 415 });
-  }
+const MAX_RESUME_SIZE = 5 * 1024 * 1024;
 
-  let uploadedKey: string | null = null;
-  let supabase: ReturnType<typeof createAdminSupabaseClient> | null = null;
-  try {
-    const body: unknown = await request.json();
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid application form data." }, { status: 400 });
-    }
+const ALLOWED_CONTENT_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
 
-    const data = parsed.data;
-    const dataUrl = /^data:[^;,]+;base64,([A-Za-z0-9+/]+={0,2})$/.exec(data.resumeData);
-    if (!dataUrl) {
-      return NextResponse.json({ error: "Invalid resume file." }, { status: 400 });
-    }
-    const base64 = dataUrl[1];
-    if (base64.length > MAX_BASE64_LENGTH) {
-      return NextResponse.json({ error: "Resume must be 5 MB or smaller." }, { status: 413 });
-    }
-    const fileContent = Buffer.from(base64, "base64");
-    if (
-      fileContent.length === 0 ||
-      fileContent.length > MAX_FILE_BYTES ||
-      fileContent.toString("base64") !== base64
-    ) {
-      return NextResponse.json({ error: "Resume must be a valid file no larger than 5 MB." }, { status: 400 });
-    }
-
-    const detectedType = await fileTypeFromBuffer(fileContent);
-    let contentType = detectedType?.mime;
-    let extension = detectedType?.ext;
-    if (
-      detectedType?.mime === "application/x-cfb" &&
-      /\.doc$/i.test(data.resumeName) &&
-      fileContent.subarray(0, 8).equals(
-        Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
-      )
-    ) {
-      contentType = "application/msword";
-      extension = "doc";
-    }
-    if (
-      !contentType ||
-      !extension ||
-      ![
-        "application/pdf",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      ].includes(contentType)
-    ) {
-      return NextResponse.json({ error: "Only valid PDF, DOC or DOCX resumes are accepted." }, { status: 400 });
-    }
-    const jobs = await sql`
-      SELECT id, title
-      FROM jobs
-      WHERE id = ${data.jobId}
-        AND state = 'published'
-        AND (deadline IS NULL OR deadline >= CURRENT_DATE)
-      LIMIT 1
-    ` as Pick<Job, "id" | "title">[];
-    const job = jobs[0];
-    if (!job) {
-      return NextResponse.json({ error: "This position is no longer accepting applications." }, { status: 400 });
-    }
-
-    const safeFileName = data.resumeName.replace(/[\r\n"\\/]/g, "_").slice(0, 180);
-    uploadedKey = `${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${extension}`;
-    supabase = createAdminSupabaseClient();
-    const { error: uploadError } = await supabase.storage
-      .from("career-resumes")
-      .upload(uploadedKey, fileContent, { contentType, upsert: false });
-    if (uploadError) {
-      console.error("Career resume upload failed:", uploadError.message);
-      uploadedKey = null;
-      return NextResponse.json({ error: "Unable to store your resume. Please try again." }, { status: 503 });
-    }
-
-    const applications = await sql`
-      INSERT INTO applications (
-        job_id, full_name, email, phone, location, experience, education,
-        skills, linkedin_url, portfolio_url, cover_letter, consent,
-        resume_storage_key, resume_original_name, resume_content_type,
-        resume_size_bytes
-      )
-      VALUES (
-        ${job.id}, ${data.fullName}, ${data.email}, ${data.phone},
-        ${data.location}, ${data.experience}, ${data.education}, ${data.skills},
-        ${data.linkedin || null}, ${data.portfolio || null},
-        ${data.coverLetter || null}, ${data.consent}, ${uploadedKey},
-        ${safeFileName}, ${contentType}, ${fileContent.length}
-      )
-      RETURNING id
-    ` as Pick<Application, "id">[];
-    const application = applications[0];
-    if (!application) throw new Error("Application insert returned no row.");
-    uploadedKey = null;
-
-    console.info("Application saved successfully.");
-    await sendApplicationNotification(
-      data,
-      job.title,
-      safeFileName,
-      application.id,
-    );
-    return NextResponse.json({ success: true, applicationId: application.id });
-  } catch (error) {
-    console.error(
-      "Career application submission failed:",
-    getPostgresErrorCode(error) ??
-      (error instanceof Error ? error.message : "Unknown server error"),
-    );
-    if (uploadedKey && supabase) {
-      const { error: cleanupError } = await supabase.storage
-        .from("career-resumes")
-        .remove([uploadedKey]);
-      if (cleanupError) {
-        console.error("Orphan resume cleanup failed:", cleanupError.message);
-      }
-    }
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid application form data." }, { status: 400 });
-    }
-    const code = getPostgresErrorCode(error);
-    if (code === "23514" || code === "P0001" || code === "23503") {
-      return NextResponse.json(
-        { error: "This position is no longer accepting applications." },
-        { status: 400 },
-      );
-    }
-    return NextResponse.json({ error: "Unable to submit your application right now." }, { status: 503 });
+function getFileExtension(contentType: string) {
+  switch (contentType) {
+    case "application/pdf":
+      return "pdf";
+    case "application/msword":
+      return "doc";
+    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      return "docx";
+    default:
+      return null;
   }
 }
 
-function getPostgresErrorCode(error: unknown) {
+function validateResumeSignature(buffer: Buffer, contentType: string) {
+  if (contentType === "application/pdf") {
+    return buffer.subarray(0, 5).toString() === "%PDF-";
+  }
+
+  if (contentType === "application/msword") {
+    return buffer.subarray(0, 8).equals(
+      Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])
+    );
+  }
+
   if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof error.code === "string"
+    contentType ===
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   ) {
-    return error.code;
+    return (
+      buffer.subarray(0, 2).toString() === "PK" &&
+      buffer.includes(Buffer.from("[Content_Types].xml"))
+    );
   }
-  return undefined;
+
+  return false;
 }
 
-async function sendApplicationNotification(
-  data: z.infer<typeof schema>,
-  position: string,
-  fileName: string,
-  applicationId: string,
-) {
+function getResumeBuffer(base64: string) {
+  const cleaned = base64.replace(/^data:[^;]+;base64,/, "");
+
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleaned)) {
+    throw new Error("Invalid resume file encoding.");
+  }
+
+  const buffer = Buffer.from(cleaned, "base64");
+
+  if (buffer.length === 0 || buffer.length > MAX_RESUME_SIZE) {
+    throw new Error("Resume must be smaller than 5 MB.");
+  }
+
+  return buffer;
+}
+
+async function sendApplicationEmail(application: {
+  fullName: string;
+  email: string;
+  phone: string;
+  location: string;
+  experience: string;
+  coverLetter: string;
+  jobTitle: string;
+}) {
   const apiKey = process.env.RESEND_API_KEY;
-  const recipient = process.env.ADMIN_NOTIFICATION_EMAIL;
+  const recipient = process.env.ADMIN_EMAIL;
+
   if (!apiKey || !recipient) {
-    console.error(
-      "Application saved successfully, but notification email failed. Resend configuration is incomplete.",
-    );
+    console.error("Application email configuration is incomplete.");
     return;
   }
 
-  try {
-    const resend = new Resend(apiKey);
-    const subjectPosition = position.replace(/[\r\n]/g, " ").slice(0, 160);
-    const subjectName = data.fullName.replace(/[\r\n]/g, " ").slice(0, 160);
-    const applicationDate = new Date().toISOString();
-    const { data: sentEmail, error } = await resend.emails.send(
-      {
-        from: "ISM Careers <onboarding@resend.dev>",
-        to: recipient,
-        replyTo: data.email,
-        subject: `New Job Application - ${subjectPosition} - ${subjectName}`,
-        html: [
-          "<h2>New Job Application</h2>",
-          `<p><strong>Candidate Name:</strong> ${escapeHtml(data.fullName)}</p>`,
-          `<p><strong>Candidate Email:</strong> ${escapeHtml(data.email)}</p>`,
-          `<p><strong>Phone Number:</strong> ${escapeHtml(data.phone)}</p>`,
-          `<p><strong>Applied Position:</strong> ${escapeHtml(position)}</p>`,
-          `<p><strong>Location:</strong> ${escapeHtml(data.location)}</p>`,
-          `<p><strong>Experience:</strong> ${escapeHtml(data.experience)}</p>`,
-          `<p><strong>Application Date:</strong> ${escapeHtml(applicationDate)}</p>`,
-          `<p><strong>Resume File Name:</strong> ${escapeHtml(fileName)}</p>`,
-          `<p><strong>Application ID:</strong> ${escapeHtml(applicationId)}</p>`,
-          "<hr/><p>Please review the full application from the ISM Admin Portal.</p>",
-        ].join(""),
-      },
-      { idempotencyKey: `career-application-${applicationId}` },
-    );
-
-    if (error) {
-      console.error(
-        "Application saved successfully, but Resend rejected the notification.",
-        {
-          name: error.name,
-          statusCode: error.statusCode,
-          message: error.message,
-        },
-      );
-      return;
-    }
-
-    if (!sentEmail) {
-      console.error(
-        "Application saved successfully, but Resend returned no notification result.",
-      );
-      return;
-    }
-
-    console.info("Application notification accepted by Resend.", {
-      emailId: sentEmail.id,
+  const escapeHtml = (value: string) =>
+    value.replace(/[&<>"']/g, (char) => {
+      const entities: Record<string, string> = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      };
+      return entities[char];
     });
+
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "ISM Careers <onboarding@resend.dev>",
+        to: [recipient],
+        subject: `New job application: ${application.jobTitle}`,
+        html: `
+          <h2>New Job Application</h2>
+          <p><strong>Position:</strong> ${escapeHtml(application.jobTitle)}</p>
+          <p><strong>Name:</strong> ${escapeHtml(application.fullName)}</p>
+          <p><strong>Email:</strong> ${escapeHtml(application.email)}</p>
+          <p><strong>Phone:</strong> ${escapeHtml(application.phone)}</p>
+          <p><strong>Location:</strong> ${escapeHtml(application.location)}</p>
+          <p><strong>Experience:</strong> ${escapeHtml(application.experience || "Not provided")}</p>
+          <p><strong>Cover Letter:</strong></p>
+          <p>${escapeHtml(application.coverLetter || "Not provided")}</p>
+          <p>Log in to the ISM admin portal to view the application and download the resume.</p>
+        `,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Application email failed:", await response.text());
+    }
   } catch (error) {
-    console.error(
-      "Application saved successfully, but Resend notification failed.",
-      error instanceof Error ? error.name : "UnknownError",
-    );
+    console.error("Application email error:", error);
   }
 }
 
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  })[character] ?? character);
+export async function POST(request: Request) {
+  let uploadedKey: string | null = null;
+
+  try {
+    const body = await request.json();
+    const parsed = applicationSchema.safeParse(body);
+
+    if (!parsed.success) {
+      console.error("Application validation failed:", parsed.error.flatten());
+
+      return NextResponse.json(
+        { error: "Please check the application details and try again." },
+        { status: 400 }
+      );
+    }
+
+    const data = parsed.data;
+
+    const phoneDigits = data.phone.replace(/\D/g, "");
+
+    if (phoneDigits.length < 7 || phoneDigits.length > 15) {
+      return NextResponse.json(
+        { error: "Please enter a valid phone number." },
+        { status: 400 }
+      );
+    }
+
+    // Support both resume and resumeData from the frontend.
+    const resumeBase64 = data.resumeData || data.resume;
+
+    if (!resumeBase64) {
+      return NextResponse.json(
+        { error: "Please upload your resume." },
+        { status: 400 }
+      );
+    }
+
+    // Detect the MIME type from the data URL or supplied value.
+    const dataUrlMatch = resumeBase64.match(
+      /^data:([^;]+);base64,/
+    );
+
+    const contentType = data.resumeType || dataUrlMatch?.[1] || "";
+
+    const extension = getFileExtension(contentType);
+
+    if (!extension || !ALLOWED_CONTENT_TYPES.has(contentType)) {
+      return NextResponse.json(
+        { error: "Only PDF, DOC, and DOCX resumes are allowed." },
+        { status: 415 }
+      );
+    }
+
+    let fileContent: Buffer;
+
+    try {
+      fileContent = getResumeBuffer(resumeBase64);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Invalid resume file.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!validateResumeSignature(fileContent, contentType)) {
+      return NextResponse.json(
+        { error: "The uploaded file does not match its file type." },
+        { status: 415 }
+      );
+    }
+
+    // Check whether the job is published and accepting applications.
+    const jobs = (await sql`
+      SELECT id, title, state, deadline
+      FROM jobs
+      WHERE id = ${data.jobId}
+      LIMIT 1
+    `) as {
+      id: string;
+      title: string;
+      state: string;
+      deadline: string | null;
+    }[];
+
+    const job = jobs[0];
+
+    if (!job || job.state !== "published") {
+      return NextResponse.json(
+        { error: "This job opening is no longer available." },
+        { status: 404 }
+      );
+    }
+
+    if (
+      job.deadline &&
+      new Date(job.deadline).getTime() < new Date().setHours(0, 0, 0, 0)
+    ) {
+      return NextResponse.json(
+        { error: "The application deadline for this job has passed." },
+        { status: 400 }
+      );
+    }
+
+    const safeOriginalName =
+      data.resumeName.replace(/[\r\n"\\/]/g, "_").slice(0, 180) ||
+      `resume.${extension}`;
+
+    const storageKey = `applications/${data.jobId}/${crypto.randomUUID()}.${extension}`;
+
+    // Upload resume to private Neon Object Storage.
+    await uploadResume(storageKey, fileContent, contentType);
+    uploadedKey = storageKey;
+
+    // Save application details in Neon PostgreSQL.
+    await sql`
+      INSERT INTO applications (
+        job_id,
+        job_title_snapshot,
+        full_name,
+        email,
+        phone,
+        location,
+        experience,
+        education,
+        skills,
+        linkedin_url,
+        portfolio_url,
+        cover_letter,
+        consent,
+        resume_storage_key,
+        resume_original_name,
+        resume_content_type,
+        resume_size_bytes,
+        status
+      )
+      VALUES (
+        ${data.jobId},
+        ${job.title},
+        ${data.fullName},
+        ${data.email},
+        ${data.phone},
+        ${data.location},
+        ${data.experience},
+        ${data.education},
+        ${data.skills},
+        ${data.linkedin || null},
+        ${data.portfolio || null},
+        ${data.coverLetter},
+        ${data.consent},
+        ${storageKey},
+        ${safeOriginalName},
+        ${contentType},
+        ${fileContent.length},
+        'new'
+      )
+    `;
+
+    console.info("Application saved successfully.");
+
+    // Send notification email.
+    await sendApplicationEmail({
+      fullName: data.fullName,
+      email: data.email,
+      phone: data.phone,
+      location: data.location,
+      experience: data.experience,
+      coverLetter: data.coverLetter,
+      jobTitle: job.title,
+    });
+
+    return NextResponse.json(
+      { message: "Your application has been submitted successfully." },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error(
+      "Application submission failed:",
+      error instanceof Error ? error.stack || error.message : error
+    );
+
+    // Clean up the uploaded resume if the database insert fails.
+    if (uploadedKey) {
+      try {
+        await deleteResume(uploadedKey);
+      } catch (cleanupError) {
+        console.error("Resume cleanup failed:", cleanupError);
+      }
+    }
+
+    return NextResponse.json(
+      { error: "Unable to submit your application. Please try again." },
+      { status: 500 }
+    );
+  }
 }

@@ -4,7 +4,7 @@ import { requireAdminApiSession, adminApiJson } from "@/lib/admin-api-auth";
 import { isSameOriginAdminRequest } from "@/lib/admin-auth";
 import { updateJobSchema } from "@/lib/admin-job-validation";
 import { sql } from "@/lib/neon";
-import type { Job } from "@/lib/supabase/database.types";
+import type { Job } from "@/types/database";
 
 type RouteContext = {
   params: Promise<{ id: string }>;

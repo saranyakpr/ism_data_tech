@@ -24,7 +24,7 @@ import type {
   Job,
   JobState,
   WorkMode,
-} from "@/lib/supabase/database.types";
+} from "@/types/database";
 import {
   EMPLOYMENT_TYPE_LABELS,
   WORK_MODE_LABELS,

@@ -4,7 +4,7 @@ import { requireAdminApiSession, adminApiJson } from "@/lib/admin-api-auth";
 import { isSameOriginAdminRequest } from "@/lib/admin-auth";
 import { createJobSchema } from "@/lib/admin-job-validation";
 import { sql } from "@/lib/neon";
-import type { EmploymentType, Job, JobState } from "@/lib/supabase/database.types";
+import type { EmploymentType, Job, JobState } from "@/types/database";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;

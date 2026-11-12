@@ -9,6 +9,7 @@ export const COMPANY_INFO = {
   hrEmail: "hr@ismdatatech.com",
   website: "https://ismdatatech.com",
   launchDate: "22 Aug 2024",
+  operationsHours: "Operations 24/7 (3 shifts) · Sales desk Mon–Sat 9 AM–6 PM IST",
   founder: {
     name: "Mr. Muthu Kulathur",
     title: "Founder & CEO",
@@ -31,204 +32,246 @@ export const COMPANY_INFO = {
     { value: 98, suffix: "%", label: "Quality Delivery" },
     { value: 3, suffix: "+", label: "International Partners" },
     { value: 100, suffix: "%", label: "Skilled Employees" },
-    { value: 24, suffix: " hrs", label: "Live Support" },
+    { value: 24, suffix: " hrs", label: "Operations (3 shifts)" },
   ],
   social: {
-    linkedin: "#",
-    twitter: "#",
-    facebook: "#",
-    instagram: "#",
-  },
-  businessHours: "Monday – Friday: 9:00 AM – 6:00 PM IST",
+  linkedin: "https://www.linkedin.com/company/ism-data-technology/",
+  instagram: "https://www.instagram.com/ism_data_technology/",
+},
+  businessHours: "Monday – Saturday: 9:00 AM – 6:00 PM IST",
 };
 
 // ─── Services ────────────────────────────────────────────────────────────────
 
-export type ServiceCategory =
-  | "all"
-  | "it-voice"
-  | "data-entry"
-  | "records"
-  | "content-media"
-  | "business-support";
+export const SERVICE_PILLARS = [
+  {
+    id: "ai-data-annotation",
+    title: "AI Data & Annotation",
+    description: "Prepare and label data for machine-learning and structured information workflows.",
+  },
+  {
+    id: "healthcare-medical-billing",
+    title: "Healthcare & Medical Billing",
+    description: "Support healthcare record and medical billing workflows with careful data handling.",
+  },
+  {
+    id: "document-archive-digitisation",
+    title: "Document & Archive Digitisation",
+    description: "Convert, organise, and index documents and historical records for digital use.",
+  },
+  {
+    id: "voice-customer-support",
+    title: "Voice & Customer Support",
+    description: "Assist customers and client teams through voice and blended communication workflows.",
+  },
+  {
+    id: "it-software-development",
+    title: "IT & Software Development",
+    description: "Build software and process structured data to support business workflows.",
+  },
+] as const;
+
+export type ServicePillarId = (typeof SERVICE_PILLARS)[number]["id"];
+
+export interface ServiceScreenshot {
+  src: string;
+  alt: string;
+}
 
 export interface Service {
   id: string;
   title: string;
-  category: ServiceCategory;
-  categoryLabel: string;
+  pillar: ServicePillarId;
   description: string;
   icon: string;
+  capabilities?: string[];
+  screenshots?: ServiceScreenshot[];
 }
 
 export const SERVICES: Service[] = [
   {
-    id: "epub",
-    title: "EPUB Services",
-    category: "it-voice",
-    categoryLabel: "Advanced IT & Voice Services",
+    id: "ai-data-annotation",
+    title: "AI Data Collection & Annotation",
+    pillar: "ai-data-annotation",
     description:
-      "Conversion and formatting of digital books and documents into EPUB format with professional precision.",
-    icon: "BookOpen",
+      "Collect, classify, and label text or image data for machine-learning workflows, with quality checks to support consistent training datasets.",
+    icon: "Database",
+    capabilities: [
+      "Image and text labelling",
+      "Data classification and tagging",
+      "Named entity and sentiment annotation",
+      "Quality checks for training datasets",
+    ],
   },
   {
-    id: "tax-voice",
-    title: "International Voice Support (UK & USA Tax Filing)",
-    category: "it-voice",
-    categoryLabel: "Advanced IT & Voice Services",
+    id: "video-annotation",
+    title: "Video Annotation",
+    pillar: "ai-data-annotation",
     description:
-      "Assisted with tax-related processes and client communication for UK and US businesses.",
-    icon: "Phone",
-  },
-  {
-    id: "debit-support",
-    title: "International Semi-Voice (Debit Support)",
-    category: "it-voice",
-    categoryLabel: "Advanced IT & Voice Services",
-    description:
-      "Handled semi-voice debit processing projects with accuracy and reliability.",
-    icon: "CreditCard",
-  },
-  {
-    id: "healthcare",
-    title: "Healthcare Data Entry",
-    category: "it-voice",
-    categoryLabel: "Advanced IT & Voice Services",
-    description:
-      "Managed sensitive healthcare-related records with accuracy, confidentiality, and attention to detail.",
-    icon: "HeartPulse",
+      "Label video frames for computer-vision workflows, including objects, movement, and events, to prepare footage for analysis.",
+    icon: "FileCheck",
+    capabilities: [
+      "Frame-by-frame object labelling",
+      "Bounding boxes and object tracking",
+      "Segmentation and event classification",
+    ],
   },
   {
     id: "spanish-data",
     title: "Spanish Data Projects",
-    category: "data-entry",
-    categoryLabel: "Data Entry & Document Processing",
+    pillar: "ai-data-annotation",
     description:
-      "Managed input and organization of Spanish-language records, ensuring linguistic accuracy and efficiency.",
+      "Enter and organise Spanish-language records with attention to language-specific fields and consistent formatting.",
     icon: "Languages",
   },
   {
-    id: "filipino-data",
-    title: "Filipino Data Projects",
-    category: "data-entry",
-    categoryLabel: "Data Entry & Document Processing",
+    id: "australian-leads",
+    title: "Australian Business Leads Collection",
+    pillar: "ai-data-annotation",
     description:
-      "Accurate entry and verification of civil registry records including birth, marriage, and death certificates.",
+      "Identify and verify Australian business contacts for targeted B2B outreach.",
+    icon: "Target",
+  },
+  {
+    id: "australian-business-data",
+    title: "Australian Business Data Research",
+    pillar: "ai-data-annotation",
+    description:
+      "Research and structure Australian business information from selected sources to support market analysis.",
+    icon: "Globe",
+  },
+  {
+    id: "healthcare",
+    title: "Healthcare Data Entry",
+    pillar: "healthcare-medical-billing",
+    description:
+      "Enter and validate healthcare records with careful handling of sensitive information, helping teams keep data organised.",
+    icon: "HeartPulse",
+  },
+  {
+    id: "medical-billing",
+    title: "Medical Billing",
+    pillar: "healthcare-medical-billing",
+    description:
+      "Provide back-office support for medical billing operations in partnership with Exela Technologies, helping keep billing workflows organised.",
+    icon: "Receipt",
+  },
+  {
+    id: "epub",
+    title: "EPUB Services",
+    pillar: "document-archive-digitisation",
+    description:
+      "Convert and format digital books into EPUB to make content easier to publish and read across supported devices.",
+    icon: "BookOpen",
+  },
+  {
+    id: "filipino-data",
+    title: "Filipino Civil Registry Data Entry",
+    pillar: "document-archive-digitisation",
+    description:
+      "Enter and verify birth, marriage, and death records to support accurate civil registry digitisation.",
     icon: "FileCheck",
   },
   {
-    id: "ceylon-data",
-    title: "Ceylon Data Projects",
-    category: "data-entry",
-    categoryLabel: "Data Entry & Document Processing",
+    id: "sri-lanka-data",
+    title: "Sri Lanka Data Projects",
+    pillar: "document-archive-digitisation",
     description:
-      "Handling government records, business data, and financial documentation with precision.",
+      "Process government, business, and financial documents from Sri Lankan projects into organised digital records.",
     icon: "Database",
   },
   {
     id: "baptism-records",
     title: "Indexing Handwritten Baptism Records",
-    category: "records",
-    categoryLabel: "Historical & Vital Records Management",
+    pillar: "document-archive-digitisation",
     description:
-      "Transcribed and indexed historical baptism documents for preservation and digital access.",
+      "Transcribe and index handwritten baptism records to make historical archives easier to search and preserve.",
     icon: "Archive",
   },
   {
     id: "burial-records",
     title: "Burial Records Projects",
-    category: "records",
-    categoryLabel: "Historical & Vital Records Management",
+    pillar: "document-archive-digitisation",
     description:
-      "Accurately transcribed handwritten burial records for historical preservation and research.",
+      "Transcribe handwritten burial records into searchable digital indexes for preservation and research.",
     icon: "ScrollText",
   },
   {
     id: "vital-records-usa",
     title: "Vital Records Processing – USA",
-    category: "records",
-    categoryLabel: "Historical & Vital Records Management",
+    pillar: "document-archive-digitisation",
     description:
-      "Entry and processing of birth, death, and marriage certificates per US government standards.",
+      "Convert birth, death, and marriage certificates into structured records for administrative workflows.",
     icon: "FileText",
   },
   {
     id: "newspaper-zoning",
     title: "Newspaper Zoning Projects",
-    category: "content-media",
-    categoryLabel: "Content & Media Processing",
+    pillar: "document-archive-digitisation",
     description:
-      "Indexed and classified diverse newspaper content for research, archiving, and digital access.",
+      "Classify newspaper content by page and section to make archived material easier to organise and retrieve.",
     icon: "Newspaper",
   },
   {
     id: "books-extraction",
     title: "Printed English Books Extraction",
-    category: "content-media",
-    categoryLabel: "Content & Media Processing",
+    pillar: "document-archive-digitisation",
     description:
-      "Extracted structured data from printed books ensuring flawless formatting and data integrity.",
+      "Extract structured text and data from printed English books, reducing manual re-entry and preparing content for reuse.",
     icon: "BookMarked",
   },
   {
-    id: "australian-leads",
-    title: "Australian Business Leads Collection",
-    category: "business-support",
-    categoryLabel: "Business Support & Lead Generation",
-    description:
-      "Provided verified, actionable contact lists for B2B clients targeting Australian markets.",
-    icon: "Target",
-  },
-  {
-    id: "medical-billing",
-    title: "Medical Billing (Exela Technologies)",
-    category: "business-support",
-    categoryLabel: "Business Support & Lead Generation",
-    description:
-      "Delivered back-end support for medical billing operations in partnership with Exela Technologies.",
-    icon: "Receipt",
-  },
-];
-
-export const ADDITIONAL_SERVICES = [
-  {
     id: "usa-docs",
     title: "USA Documentation",
+    pillar: "document-archive-digitisation",
     description:
-      "We provide accurate and efficient USA documentation services, ensuring data consistency and compliance with international standards. Our experienced team handles complex documentation processes with precision, helping clients save time and maintain quality in every project.",
+      "Organise USA-related documents into consistent digital records to support reliable retrieval and data checks.",
     icon: "FileStack",
-  },
-  {
-    id: "australian-scraping",
-    title: "Australian Scraping",
-    description:
-      "Our Australian scraping services deliver clean, structured, and high-quality data from trusted online sources. We use advanced tools and techniques to extract accurate information, empowering businesses with actionable insights for informed decision-making.",
-    icon: "Globe",
-  },
-  {
-    id: "xml-processing",
-    title: "XML Processing",
-    description:
-      "We specialize in efficient XML processing services, ensuring accurate data conversion, validation, and structuring. Our team delivers well-organized XML outputs that enhance data exchange, integration, and automation across multiple platforms.",
-    icon: "Code2",
   },
   {
     id: "typing-projects",
     title: "Typing Projects",
+    pillar: "document-archive-digitisation",
     description:
-      "Our typing services ensure fast, accurate, and well-formatted data entry for all types of projects. With a skilled team and quality checks at every stage, we deliver reliable typing solutions that help businesses maintain efficiency and precision.",
+      "Transcribe supplied content into clean, consistently formatted documents to reduce manual data-entry work.",
     icon: "Keyboard",
+  },
+  {
+    id: "tax-voice",
+    title: "International Voice Support (UK & USA Tax Filing)",
+    pillar: "voice-customer-support",
+    description:
+      "Support UK and US tax-filing workflows through voice-based client communication and process assistance.",
+    icon: "Phone",
+  },
+  {
+    id: "debit-support",
+    title: "International Semi-Voice (Debit Support)",
+    pillar: "voice-customer-support",
+    description:
+      "Assist customers with debit-related account queries through a mix of phone conversations and non-voice follow-up.",
+    icon: "CreditCard",
+  },
+  {
+    id: "xml-processing",
+    title: "XML Processing",
+    pillar: "it-software-development",
+    description:
+      "Convert, validate, and structure XML data to support reliable exchange between systems.",
+    icon: "Code2",
+  },
+  {
+    id: "software-development",
+    title: "Custom Software Development",
+    pillar: "it-software-development",
+    description:
+      "Develop and maintain custom software around agreed business requirements, helping streamline workflows and connect internal tools.",
+    icon: "Code2",
+    screenshots: [],
   },
 ];
 
-export const SERVICE_CATEGORIES = [
-  { value: "all", label: "All Programs" },
-  { value: "it-voice", label: "Advanced IT & Voice Services" },
-  { value: "data-entry", label: "Data Entry & Document Processing" },
-  { value: "records", label: "Historical & Vital Records Management" },
-  { value: "content-media", label: "Content & Media Processing" },
-  { value: "business-support", label: "Business Support & Lead Generation" },
-];
+export const OTHER_SERVICE_OPTION = "Other / Multiple Services";
 
 // ─── Testimonials ─────────────────────────────────────────────────────────────
 
@@ -320,41 +363,29 @@ export const TIMELINE = [
 // ─── Why Choose ISM ───────────────────────────────────────────────────────────
 
 export const WHY_CHOOSE = [
-  {
-    icon: "ShieldCheck",
-    title: "Accuracy & Quality",
+    {
+    icon: "FileCheck",
+    title: "NDA & Confidentiality",
     description:
-      "Every project goes through rigorous quality checks. We maintain high accuracy standards across all data operations.",
+      "Non-Disclosure Agreements help protect confidential client information and business data.",
   },
   {
-    icon: "Users",
-    title: "Skilled Workforce",
+    icon: "LockKeyhole",
+    title: "Controlled Access",
     description:
-      "100% skilled employees trained for their specific domains — from healthcare data to historical records management.",
+      "Access to work areas and information is controlled to help protect client data.",
   },
   {
-    icon: "Globe2",
-    title: "International Experience",
+    icon: "Video",
+    title: "CCTV Monitoring",
     description:
-      "Proven delivery across US, UK, French, Australian, and Asian projects with deep understanding of regional requirements.",
+      "Workplace areas are monitored through CCTV as part of our physical security practices.",
   },
   {
-    icon: "TrendingUp",
-    title: "Scalable Operations",
+    icon: "Smartphone",
+    title: "No-Phone Floor Policy",
     description:
-      "Whether a small batch or large-scale continuous project, we scale our team and resources to meet your demand.",
-  },
-  {
-    icon: "Handshake",
-    title: "Client-Focused Approach",
-    description:
-      "We communicate proactively, deliver on time, and tailor our services to each client's unique business needs.",
-  },
-  {
-    icon: "Heart",
-    title: "Rural Women Empowerment",
-    description:
-      "We create meaningful employment for rural women professionals, combining business excellence with social responsibility.",
+      "Personal phones are restricted in designated work areas to support a secure working environment.",
   },
 ];
 
@@ -366,11 +397,15 @@ export const CLIENT_LOCATIONS = [
     description: "Voice support, documentation, vital records, and more.",
   },
   {
+    country: "United Kingdom",
+    description: "Voice support for UK tax-filing workflows.",
+  },
+  {
     country: "France",
     description: "Data processing and business support services.",
   },
   {
     country: "Australia",
-    description: "Business leads, scraping, and data collection projects.",
+    description: "Business leads and data collection projects.",
   },
 ];

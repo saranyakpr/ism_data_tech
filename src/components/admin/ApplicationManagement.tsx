@@ -12,7 +12,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import type { ApplicationStatus } from "@/lib/supabase/database.types";
+import type { ApplicationStatus } from "@/types/database";
 
 const PAGE_SIZE = 25;
 

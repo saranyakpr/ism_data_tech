@@ -1,6 +1,6 @@
 import { requireAdminApiSession, adminApiJson } from "@/lib/admin-api-auth";
 import { sql } from "@/lib/neon";
-import type { Application, Job } from "@/lib/supabase/database.types";
+import type { Application, Job } from "@/types/database";
 
 export async function GET() {
   const authError = await requireAdminApiSession();

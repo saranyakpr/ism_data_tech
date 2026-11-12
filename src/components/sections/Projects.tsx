@@ -1,16 +1,63 @@
 "use client";
 import { motion } from "framer-motion";
 import { stagger, item, fadeUp, fadeLeft, vp } from "@/lib/motion";
-
 const PROJECTS = [
-  { title:"USA Tax Filing Voice Support",     cat:"IT & Voice",    desc:"Voice-based tax assistance for UK and US clients with professional accuracy.",       col:"#0055ff",     bg:"rgba(0,85,255,0.08)" },
-  { title:"Healthcare Records Management",    cat:"IT & Voice",    desc:"Sensitive healthcare data managed with strict confidentiality and accuracy.",          col:"#2d465e",     bg:"rgba(0,85,255,0.08)" },
-  { title:"Historical Baptism Records Index", cat:"Historical",    desc:"Thousands of handwritten documents transcribed and indexed for preservation.",         col:"#2d465e",      bg:"rgba(140,164,188,0.08)" },
-  { title:"USA Vital Records Processing",     cat:"Historical",    desc:"Birth, death and marriage certificates processed per US government standards.",        col:"#0055ff",     bg:"rgba(0,85,255,0.08)" },
-  { title:"Australian Business Leads",        cat:"Biz Support",   desc:"Verified B2B contact datasets enabling faster Australian market entry.",              col:"#2d465e",     bg:"rgba(0,85,255,0.08)" },
-  { title:"Newspaper Zoning & Indexing",      cat:"Content",       desc:"Archive classification enabling fast digital content discovery for research.",         col:"#2d465e",      bg:"rgba(140,164,188,0.08)" },
-  { title:"Filipino Civil Registry Entry",    cat:"Data Entry",    desc:"Accurate civil registry verification including birth, marriage and death records.",    col:"#0055ff",     bg:"rgba(0,85,255,0.08)" },
-  { title:"Medical Billing – Exela Tech",     cat:"Biz Support",   desc:"Back-end billing support with accuracy in claims processing.",                        col:"#2d465e",     bg:"rgba(0,85,255,0.08)" },
+  {
+    title: "USA Tax Filing Voice Support",
+    cat: "Voice Support",
+    desc: "Voice-based assistance for UK and US tax-filing workflows, supporting clear and efficient customer interactions.",
+    col: "#0055ff",
+    bg: "rgba(0,85,255,0.08)",
+  },
+  {
+    title: "Healthcare Records Management",
+    cat: "Healthcare",
+    desc: "Healthcare record processing and information management with a focus on accuracy and confidentiality.",
+    col: "#2d465e",
+    bg: "rgba(0,85,255,0.08)",
+  },
+  {
+    title: "Historical Baptism Records Index",
+    cat: "Digitisation",
+    desc: "Handwritten historical baptism records transcribed and indexed to support digital preservation and retrieval.",
+    col: "#2d465e",
+    bg: "rgba(140,164,188,0.08)",
+  },
+  {
+    title: "USA Vital Records Processing",
+    cat: "Digitisation",
+    desc: "Processing and organising birth, death and marriage certificate records for digital record management.",
+    col: "#0055ff",
+    bg: "rgba(0,85,255,0.08)",
+  },
+  {
+    title: "Australian Business Leads",
+    cat: "Data Research",
+    desc: "Business data research and contact information collection to support Australian market research.",
+    col: "#2d465e",
+    bg: "rgba(0,85,255,0.08)",
+  },
+  {
+    title: "Newspaper Zoning & Indexing",
+    cat: "Digitisation",
+    desc: "Newspaper archive classification and indexing to make historical content easier to organise and retrieve.",
+    col: "#2d465e",
+    bg: "rgba(140,164,188,0.08)",
+  },
+  {
+    title: "Filipino Civil Registry Entry",
+    cat: "Data Processing",
+    desc: "Data entry and verification of civil registry records, including birth, marriage and death information.",
+    col: "#0055ff",
+    bg: "rgba(0,85,255,0.08)",
+  },
+  {
+    title: "Medical Billing – Exela Technologies",
+    cat: "Healthcare",
+    desc: "Back-office medical billing support, including claims-related data processing.",
+    col: "#2d465e",
+    bg: "rgba(0,85,255,0.08)",
+  },
 ];
 
 export default function Projects() {
