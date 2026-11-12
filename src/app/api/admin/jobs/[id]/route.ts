@@ -3,7 +3,8 @@ import { ZodError } from "zod";
 import { requireAdminApiSession, adminApiJson } from "@/lib/admin-api-auth";
 import { isSameOriginAdminRequest } from "@/lib/admin-auth";
 import { updateJobSchema } from "@/lib/admin-job-validation";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { sql } from "@/lib/neon";
+import type { Job } from "@/lib/supabase/database.types";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -47,43 +48,65 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase
-      .from("jobs")
-      .update(parsed.data)
-      .eq("id", id)
-      .select("*")
-      .maybeSingle();
+    const { slug, title, department, location, employment_type, work_mode,
+      experience, description, requirements, responsibilities, qualifications,
+      deadline, state } = parsed.data;
+    const jobs = await sql`
+      UPDATE jobs
+      SET slug = ${slug},
+        title = ${title},
+        department = ${department},
+        location = ${location},
+        employment_type = ${employment_type},
+        work_mode = ${work_mode},
+        experience = ${experience},
+        description = ${description},
+        requirements = ${requirements},
+        responsibilities = ${responsibilities},
+        qualifications = ${qualifications},
+        deadline = ${deadline},
+        state = ${state}
+      WHERE id = ${id}
+      RETURNING *
+    ` as Job[];
 
-    if (error) {
-      if (error.code === "23505") {
-        return adminApiJson(
-          { error: "A job with this slug already exists." },
-          { status: 409 },
-        );
-      }
-      if (error.code === "23514" || error.code === "23502") {
-        return adminApiJson(
-          { error: "The job could not be saved because a database constraint failed." },
-          { status: 400 },
-        );
-      }
-      console.error("Admin job update failed:", error.code);
-      return adminApiJson({ error: "Unable to update the job." }, { status: 503 });
-    }
-
-    if (!data) {
+    if (!jobs[0]) {
       return adminApiJson({ error: "Job not found." }, { status: 404 });
     }
 
-    return adminApiJson({ job: data });
+    return adminApiJson({ job: jobs[0] });
   } catch (error) {
+    const code = getPostgresErrorCode(error);
+    if (code === "23505") {
+      return adminApiJson(
+        { error: "A job with this slug already exists." },
+        { status: 409 },
+      );
+    }
+    if (code === "23514" || code === "23502") {
+      return adminApiJson(
+        { error: "The job could not be saved because a database constraint failed." },
+        { status: 400 },
+      );
+    }
     console.error(
       "Admin job update failed:",
-      error instanceof Error ? error.message : "Unknown server error",
+      code ?? (error instanceof Error ? error.message : "Unknown server error"),
     );
     return adminApiJson({ error: "Unable to update the job." }, { status: 503 });
   }
+}
+
+function getPostgresErrorCode(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string"
+  ) {
+    return error.code;
+  }
+  return undefined;
 }
 
 function formatZodErrors(error: ZodError) {

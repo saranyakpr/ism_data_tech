@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAdminApiSession, adminApiJson } from "@/lib/admin-api-auth";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import type { ApplicationStatus } from "@/lib/supabase/database.types";
+import { sql } from "@/lib/neon";
+import type { Application, ApplicationStatus } from "@/lib/supabase/database.types";
 
 const PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -37,33 +37,69 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const supabase = createAdminSupabaseClient();
-    let query = supabase
-      .from("applications")
-      .select(
-        "id, job_id, job_title_snapshot, full_name, email, phone, location, experience, education, skills, linkedin_url, portfolio_url, cover_letter, status, resume_original_name, resume_content_type, resume_size_bytes, submitted_at, updated_at",
-        { count: "exact" },
-      )
-      .order("submitted_at", { ascending: false });
-
-    if (status) query = query.eq("status", status as ApplicationStatus);
     const safeSearch = search.replace(/[,%_*()\\]/g, " ").replace(/\s+/g, " ").trim();
-    if (safeSearch) {
-      query = query.or(
-        `full_name.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%,job_title_snapshot.ilike.%${safeSearch}%,location.ilike.%${safeSearch}%`,
-      );
-    }
-
+    const statusFilter = status || null;
+    const searchPattern = safeSearch ? `%${safeSearch}%` : null;
     const from = (page - 1) * pageSize;
-    const { data, error, count } = await query.range(from, from + pageSize - 1);
-    if (error) {
-      console.error("Admin applications query failed:", error.code);
-      return adminApiJson({ error: "Unable to load applications." }, { status: 503 });
-    }
+    const [countRowsResult, applicationsResult] = await Promise.all([
+      sql`
+        SELECT COUNT(*)::int AS total
+        FROM applications
+        WHERE (${statusFilter}::text IS NULL OR status::text = ${statusFilter})
+          AND (
+            ${searchPattern}::text IS NULL
+            OR full_name ILIKE ${searchPattern}
+            OR email ILIKE ${searchPattern}
+            OR job_title_snapshot ILIKE ${searchPattern}
+            OR location ILIKE ${searchPattern}
+          )
+      `,
+      sql`
+        SELECT id, job_id, job_title_snapshot, full_name, email, phone, location,
+          experience, education, skills, linkedin_url, portfolio_url, cover_letter,
+          status, resume_original_name, resume_content_type, resume_size_bytes,
+          submitted_at, updated_at
+        FROM applications
+        WHERE (${statusFilter}::text IS NULL OR status::text = ${statusFilter})
+          AND (
+            ${searchPattern}::text IS NULL
+            OR full_name ILIKE ${searchPattern}
+            OR email ILIKE ${searchPattern}
+            OR job_title_snapshot ILIKE ${searchPattern}
+            OR location ILIKE ${searchPattern}
+          )
+        ORDER BY submitted_at DESC
+        LIMIT ${pageSize}
+        OFFSET ${from}
+      `,
+    ]);
+    const countRows = countRowsResult as { total: number }[];
+    const applications = applicationsResult as Pick<
+      Application,
+      | "id"
+      | "job_id"
+      | "job_title_snapshot"
+      | "full_name"
+      | "email"
+      | "phone"
+      | "location"
+      | "experience"
+      | "education"
+      | "skills"
+      | "linkedin_url"
+      | "portfolio_url"
+      | "cover_letter"
+      | "status"
+      | "resume_original_name"
+      | "resume_content_type"
+      | "resume_size_bytes"
+      | "submitted_at"
+      | "updated_at"
+    >[];
 
     return adminApiJson({
-      applications: data ?? [],
-      total: count ?? 0,
+      applications,
+      total: countRows[0]?.total ?? 0,
       page,
       pageSize,
     });

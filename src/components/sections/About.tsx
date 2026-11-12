@@ -44,26 +44,6 @@ export default function About() {
                   </div>
                 </motion.div>
               ))}
-              <motion.div
-                variants={item}
-                initial={{ clipPath:"inset(0 100% 0 0)" }}
-                whileInView={{ clipPath:"inset(0 0 0 0)" }}
-                viewport={{ once:false, amount:0.25 }}
-                className="relative h-56 sm:h-64 overflow-hidden rounded-2xl border border-blue-300/15"
-                whileHover={{ y: -3 }}
-                transition={{ duration:0.85, ease:[0.16,1,0.3,1] }}>
-                <Image
-                  src="/images/corporate/modern-office.jpg"
-                  alt="Contemporary glass-walled office meeting room"
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 45vw"
-                  className="object-cover"
-                />
-<div className="absolute inset-0 bg-gradient-to-t from-[#071226]/85 via-[#071226]/20 to-transparent" />
-                <span className="absolute bottom-4 left-5 text-sm font-semibold text-white">
-                  A modern workplace built for collaboration
-                </span>
-              </motion.div>
             </motion.div>
           </div>
           </div>

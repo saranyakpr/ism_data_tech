@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireAdminApiSession, adminApiJson } from "@/lib/admin-api-auth";
 import { isSameOriginAdminRequest } from "@/lib/admin-auth";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { sql } from "@/lib/neon";
+import type { Application } from "@/lib/supabase/database.types";
 
 const paramsSchema = z.object({
   id: z.string().uuid(),
@@ -48,20 +49,16 @@ export async function PATCH(
   }
 
   try {
-    const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase
-      .from("applications")
-      .update({ status: parsedBody.data.status })
-      .eq("id", parsedParams.data.id)
-      .select("id, status, updated_at")
-      .maybeSingle();
-
-    if (error) {
-      console.error("Admin application update failed:", error.code);
-      return adminApiJson({ error: "Unable to update application status." }, { status: 503 });
+    const updated = await sql`
+      UPDATE applications
+      SET status = ${parsedBody.data.status}
+      WHERE id = ${parsedParams.data.id}
+      RETURNING id, status, updated_at
+    ` as Pick<Application, "id" | "status" | "updated_at">[];
+    if (!updated[0]) {
+      return adminApiJson({ error: "Application not found." }, { status: 404 });
     }
-    if (!data) return adminApiJson({ error: "Application not found." }, { status: 404 });
-    return adminApiJson({ application: data });
+    return adminApiJson({ application: updated[0] });
   } catch (error) {
     console.error(
       "Admin application update failed:",

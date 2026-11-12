@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminApiSession } from "@/lib/admin-api-auth";
+import { sql } from "@/lib/neon";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import type { Application } from "@/lib/supabase/database.types";
 
 const paramsSchema = z.object({ id: z.string().uuid() });
 const ALLOWED_CONTENT_TYPES = new Set([
@@ -21,19 +23,17 @@ export async function GET(
   if (!parsedParams.success) {
     return NextResponse.json({ error: "Invalid application ID." }, { status: 400 });
   }
-
   try {
-    const supabase = createAdminSupabaseClient();
-    const { data: application, error: applicationError } = await supabase
-      .from("applications")
-      .select("resume_storage_key, resume_original_name, resume_content_type")
-      .eq("id", parsedParams.data.id)
-      .maybeSingle();
-
-    if (applicationError) {
-      console.error("Resume metadata lookup failed:", applicationError.code);
-      return NextResponse.json({ error: "Unable to retrieve resume." }, { status: 503 });
-    }
+    const applications = await sql`
+      SELECT resume_storage_key, resume_original_name, resume_content_type
+      FROM applications
+      WHERE id = ${parsedParams.data.id}
+      LIMIT 1
+    ` as Pick<
+      Application,
+      "resume_storage_key" | "resume_original_name" | "resume_content_type"
+    >[];
+    const application = applications[0];
     if (!application) {
       return NextResponse.json({ error: "Application not found." }, { status: 404 });
     }
@@ -42,6 +42,7 @@ export async function GET(
       return NextResponse.json({ error: "Resume cannot be downloaded." }, { status: 415 });
     }
 
+    const supabase = createAdminSupabaseClient();
     const { data: file, error: downloadError } = await supabase.storage
       .from("career-resumes")
       .download(application.resume_storage_key);

@@ -3,7 +3,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ScrollProgress from "@/components/ui/ScrollProgress";
 import ApplicationForm from "@/components/careers/ApplicationForm";
-import { createPublicSupabaseClient } from "@/lib/supabase/public";
+import { sql } from "@/lib/neon";
 import type { PublicJob } from "@/lib/jobs";
 
 export const metadata: Metadata = {
@@ -20,20 +20,13 @@ export default async function ApplyPage({
   let jobs: Pick<PublicJob, "id" | "title">[] = [];
 
   try {
-    const supabase = createPublicSupabaseClient();
-    const today = new Date().toISOString().slice(0, 10);
-    const { data, error } = await supabase
-      .from("jobs")
-      .select("id, title")
-      .eq("state", "published")
-      .or(`deadline.is.null,deadline.gte.${today}`)
-      .order("title", { ascending: true });
-
-    if (error) {
-      console.error("Could not load open positions for application form:", error.message);
-    } else {
-      jobs = data ?? [];
-    }
+    jobs = await sql`
+      SELECT id, title
+      FROM jobs
+      WHERE state = 'published'
+        AND (deadline IS NULL OR deadline >= CURRENT_DATE)
+      ORDER BY title ASC
+    ` as Pick<PublicJob, "id" | "title">[];
   } catch (error) {
     console.error(
       "Could not initialize open positions for application form:",

@@ -3,8 +3,8 @@ import { ZodError } from "zod";
 import { requireAdminApiSession, adminApiJson } from "@/lib/admin-api-auth";
 import { isSameOriginAdminRequest } from "@/lib/admin-auth";
 import { createJobSchema } from "@/lib/admin-job-validation";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import type { EmploymentType, JobState } from "@/lib/supabase/database.types";
+import { sql } from "@/lib/neon";
+import type { EmploymentType, Job, JobState } from "@/lib/supabase/database.types";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -44,71 +44,75 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const supabase = createAdminSupabaseClient();
     const safeSearch = search.replace(/[,%_*()\\]/g, " ").replace(/\s+/g, " ").trim();
-    const countResults = await Promise.all(
-      validStates.map((state) =>
-        supabase
-          .from("jobs")
-          .select("id", { count: "exact", head: true })
-          .eq("state", state),
-      ),
-    );
-    const failedCount = countResults.find((result) => result.error);
-    if (failedCount?.error) {
-      console.error("Admin job summary query failed:", failedCount.error.code);
-      return adminApiJson(
-        { error: "Unable to load jobs right now." },
-        { status: 503 },
-      );
-    }
-
-    let jobsQuery = supabase
-      .from("jobs")
-      .select("*, applications(count)", { count: "exact" })
-      .order("created_at", { ascending: false });
-    if (stateParam) jobsQuery = jobsQuery.eq("state", stateParam as JobState);
-    if (employmentTypeParam) {
-      jobsQuery = jobsQuery.eq(
-        "employment_type",
-        employmentTypeParam as EmploymentType,
-      );
-    }
-    if (safeSearch) {
-      jobsQuery = jobsQuery.or(
-        `title.ilike.%${safeSearch}%,department.ilike.%${safeSearch}%,location.ilike.%${safeSearch}%`,
-      );
-    }
+    const stateFilter = stateParam || null;
+    const employmentTypeFilter = employmentTypeParam || null;
+    const searchPattern = safeSearch ? `%${safeSearch}%` : null;
     const from = (pageParam - 1) * pageSizeParam;
-    const { data, error, count } = await jobsQuery.range(
-      from,
-      from + pageSizeParam - 1,
-    );
-
-    if (error) {
-      console.error("Admin jobs list query failed:", error.code);
-      return adminApiJson(
-        { error: "Unable to load jobs right now." },
-        { status: 503 },
-      );
-    }
+    const [summaryRowsResult, countRowsResult, jobsResult] = await Promise.all([
+      sql`
+        SELECT COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE state = 'draft')::int AS draft,
+          COUNT(*) FILTER (WHERE state = 'published')::int AS published,
+          COUNT(*) FILTER (WHERE state = 'closed')::int AS closed
+        FROM jobs
+      `,
+      sql`
+        SELECT COUNT(*)::int AS total
+        FROM jobs j
+        WHERE (${stateFilter}::text IS NULL OR j.state::text = ${stateFilter})
+          AND (${employmentTypeFilter}::text IS NULL OR j.employment_type::text = ${employmentTypeFilter})
+          AND (
+            ${searchPattern}::text IS NULL
+            OR j.title ILIKE ${searchPattern}
+            OR j.department ILIKE ${searchPattern}
+            OR j.location ILIKE ${searchPattern}
+          )
+      `,
+      sql`
+        SELECT j.*,
+          (
+            SELECT COUNT(*)::int
+            FROM applications a
+            WHERE a.job_id = j.id
+          ) AS applicant_count
+        FROM jobs j
+        WHERE (${stateFilter}::text IS NULL OR j.state::text = ${stateFilter})
+          AND (${employmentTypeFilter}::text IS NULL OR j.employment_type::text = ${employmentTypeFilter})
+          AND (
+            ${searchPattern}::text IS NULL
+            OR j.title ILIKE ${searchPattern}
+            OR j.department ILIKE ${searchPattern}
+            OR j.location ILIKE ${searchPattern}
+          )
+        ORDER BY j.created_at DESC
+        LIMIT ${pageSizeParam}
+        OFFSET ${from}
+      `,
+    ]);
+    const summaryRows = summaryRowsResult as {
+      total: number;
+      draft: number;
+      published: number;
+      closed: number;
+    }[];
+    const countRows = countRowsResult as { total: number }[];
+    const jobs = jobsResult as (Job & { applicant_count: number })[];
+    const summary = summaryRows[0];
 
     return adminApiJson({
-      jobs: (data ?? []).map(({ applications, ...job }) => ({
+      jobs: jobs.map(({ applicant_count, ...job }) => ({
         ...job,
-        applicant_count: applications[0]?.count ?? 0,
+        applicant_count,
       })),
-      total: count ?? 0,
+      total: countRows[0]?.total ?? 0,
       page: pageParam,
       pageSize: pageSizeParam,
       summary: {
-        total: countResults.reduce(
-          (sum, result) => sum + (result.count ?? 0),
-          0,
-        ),
-        draft: countResults[0].count ?? 0,
-        published: countResults[1].count ?? 0,
-        closed: countResults[2].count ?? 0,
+        total: summary?.total ?? 0,
+        draft: summary?.draft ?? 0,
+        published: summary?.published ?? 0,
+        closed: summary?.closed ?? 0,
       },
     });
   } catch (error) {
@@ -153,38 +157,56 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase
-      .from("jobs")
-      .insert(parsed.data)
-      .select("*")
-      .single();
-
-    if (error) {
-      if (error.code === "23505") {
-        return adminApiJson(
-          { error: "A job with this slug already exists." },
-          { status: 409 },
-        );
-      }
-      if (error.code === "23514" || error.code === "23502") {
-        return adminApiJson(
-          { error: "The job could not be saved because a database constraint failed." },
-          { status: 400 },
-        );
-      }
-      console.error("Admin job creation failed:", error.code);
-      return adminApiJson({ error: "Unable to create the job." }, { status: 503 });
-    }
-
-    return adminApiJson({ job: data }, { status: 201 });
+    const { slug, title, department, location, employment_type, work_mode,
+      experience, description, requirements, responsibilities, qualifications,
+      deadline, state } = parsed.data;
+    const jobs = await sql`
+      INSERT INTO jobs (
+        slug, title, department, location, employment_type, work_mode,
+        experience, description, requirements, responsibilities, qualifications,
+        deadline, state
+      )
+      VALUES (
+        ${slug}, ${title}, ${department}, ${location}, ${employment_type},
+        ${work_mode}, ${experience}, ${description}, ${requirements},
+        ${responsibilities}, ${qualifications}, ${deadline}, ${state}
+      )
+      RETURNING *
+    ` as Job[];
+    if (!jobs[0]) throw new Error("Job insert returned no row.");
+    return adminApiJson({ job: jobs[0] }, { status: 201 });
   } catch (error) {
+    const code = getPostgresErrorCode(error);
+    if (code === "23505") {
+      return adminApiJson(
+        { error: "A job with this slug already exists." },
+        { status: 409 },
+      );
+    }
+    if (code === "23514" || code === "23502") {
+      return adminApiJson(
+        { error: "The job could not be saved because a database constraint failed." },
+        { status: 400 },
+      );
+    }
     console.error(
       "Admin job creation failed:",
-      error instanceof Error ? error.message : "Unknown server error",
+      code ?? (error instanceof Error ? error.message : "Unknown server error"),
     );
     return adminApiJson({ error: "Unable to create the job." }, { status: 503 });
   }
+}
+
+function getPostgresErrorCode(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string"
+  ) {
+    return error.code;
+  }
+  return undefined;
 }
 
 function formatZodErrors(error: ZodError) {

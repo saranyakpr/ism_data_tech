@@ -12,7 +12,7 @@ import {
 import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
 import ScrollProgress from "@/components/ui/ScrollProgress";
-import { createPublicSupabaseClient } from "@/lib/supabase/public";
+import { sql } from "@/lib/neon";
 import type { Job } from "@/lib/supabase/database.types";
 import {
   EMPLOYMENT_TYPE_LABELS,
@@ -50,25 +50,29 @@ export default async function CareerJobDetailsPage({
     notFound();
   }
 
-  const supabase = createPublicSupabaseClient();
-  const today = new Date().toISOString().slice(0, 10);
-  const { data: job, error } = await supabase
-    .from("jobs")
-    .select(
-      "id, title, department, location, employment_type, work_mode, experience, description, requirements, responsibilities, qualifications, deadline",
-    )
-    .eq("id", id)
-    .eq("state", "published")
-    .or(`deadline.is.null,deadline.gte.${today}`)
-    .maybeSingle();
-
-  if (error) {
-    console.error("Failed to fetch public career job details:", error.message);
+  let job: PublicJobDetails | undefined;
+  try {
+    const jobs = await sql`
+      SELECT id, title, department, location, employment_type, work_mode,
+        experience, description, requirements, responsibilities, qualifications,
+        deadline
+      FROM jobs
+      WHERE id = ${id}
+        AND state = 'published'
+        AND (deadline IS NULL OR deadline >= CURRENT_DATE)
+      LIMIT 1
+    ` as PublicJobDetails[];
+    job = jobs[0];
+  } catch (error) {
+    console.error(
+      "Failed to fetch public career job details:",
+      error instanceof Error ? error.message : "Unknown server error",
+    );
     throw new Error("Unable to load job details.");
   }
   if (!job) notFound();
 
-  const details = job as PublicJobDetails;
+  const details = job;
 
   return (
     <>

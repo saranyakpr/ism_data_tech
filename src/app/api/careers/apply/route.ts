@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { fileTypeFromBuffer } from "file-type";
 import { Resend } from "resend";
 import { z } from "zod";
+import { sql } from "@/lib/neon";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import type { Application, Job } from "@/lib/supabase/database.types";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_BASE64_LENGTH = Math.ceil(MAX_FILE_BYTES / 3) * 4 + 128;
@@ -80,23 +82,22 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json({ error: "Only valid PDF, DOC or DOCX resumes are accepted." }, { status: 400 });
     }
-    supabase = createAdminSupabaseClient();
-    const today = new Date().toISOString().slice(0, 10);
-    const { data: job, error: jobError } = await supabase
-      .from("jobs")
-      .select("id, title, state, deadline")
-      .eq("id", data.jobId)
-      .maybeSingle();
-    if (jobError) {
-      console.error("Career application job lookup failed:", jobError.code);
-      return NextResponse.json({ error: "Unable to submit your application right now." }, { status: 503 });
-    }
-    if (!job || job.state !== "published" || (job.deadline && job.deadline < today)) {
+    const jobs = await sql`
+      SELECT id, title
+      FROM jobs
+      WHERE id = ${data.jobId}
+        AND state = 'published'
+        AND (deadline IS NULL OR deadline >= CURRENT_DATE)
+      LIMIT 1
+    ` as Pick<Job, "id" | "title">[];
+    const job = jobs[0];
+    if (!job) {
       return NextResponse.json({ error: "This position is no longer accepting applications." }, { status: 400 });
     }
 
     const safeFileName = data.resumeName.replace(/[\r\n"\\/]/g, "_").slice(0, 180);
     uploadedKey = `${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${extension}`;
+    supabase = createAdminSupabaseClient();
     const { error: uploadError } = await supabase.storage
       .from("career-resumes")
       .upload(uploadedKey, fileContent, { contentType, upsert: false });
@@ -106,45 +107,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unable to store your resume. Please try again." }, { status: 503 });
     }
 
-    const { data: application, error: insertError } = await supabase
-      .from("applications")
-      .insert({
-        job_id: job.id,
-        full_name: data.fullName,
-        email: data.email,
-        phone: data.phone,
-        location: data.location,
-        experience: data.experience,
-        education: data.education,
-        skills: data.skills,
-        linkedin_url: data.linkedin || null,
-        portfolio_url: data.portfolio || null,
-        cover_letter: data.coverLetter || null,
-        consent: data.consent,
-        resume_storage_key: uploadedKey,
-        resume_original_name: safeFileName,
-        resume_content_type: contentType,
-        resume_size_bytes: fileContent.length,
-      })
-      .select("id")
-      .single();
-
-    if (insertError || !application) {
-      console.error("Career application insert failed:", {
-        code: insertError?.code,
-        message: insertError?.message,
-        details: insertError?.details,
-        hint: insertError?.hint,
-      });
-      const { error: cleanupError } = await supabase.storage
-        .from("career-resumes")
-        .remove([uploadedKey]);
-      if (cleanupError) {
-        console.error("Orphan resume cleanup failed:", cleanupError.message);
-      }
-      uploadedKey = null;
-      return NextResponse.json({ error: "Unable to submit your application right now." }, { status: 503 });
-    }
+    const applications = await sql`
+      INSERT INTO applications (
+        job_id, full_name, email, phone, location, experience, education,
+        skills, linkedin_url, portfolio_url, cover_letter, consent,
+        resume_storage_key, resume_original_name, resume_content_type,
+        resume_size_bytes
+      )
+      VALUES (
+        ${job.id}, ${data.fullName}, ${data.email}, ${data.phone},
+        ${data.location}, ${data.experience}, ${data.education}, ${data.skills},
+        ${data.linkedin || null}, ${data.portfolio || null},
+        ${data.coverLetter || null}, ${data.consent}, ${uploadedKey},
+        ${safeFileName}, ${contentType}, ${fileContent.length}
+      )
+      RETURNING id
+    ` as Pick<Application, "id">[];
+    const application = applications[0];
+    if (!application) throw new Error("Application insert returned no row.");
     uploadedKey = null;
 
     console.info("Application saved successfully.");
@@ -158,7 +138,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error(
       "Career application submission failed:",
-      error instanceof Error ? error.message : "Unknown server error",
+    getPostgresErrorCode(error) ??
+      (error instanceof Error ? error.message : "Unknown server error"),
     );
     if (uploadedKey && supabase) {
       const { error: cleanupError } = await supabase.storage
@@ -171,8 +152,27 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid application form data." }, { status: 400 });
     }
+    const code = getPostgresErrorCode(error);
+    if (code === "23514" || code === "P0001" || code === "23503") {
+      return NextResponse.json(
+        { error: "This position is no longer accepting applications." },
+        { status: 400 },
+      );
+    }
     return NextResponse.json({ error: "Unable to submit your application right now." }, { status: 503 });
   }
+}
+
+function getPostgresErrorCode(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string"
+  ) {
+    return error.code;
+  }
+  return undefined;
 }
 
 async function sendApplicationNotification(

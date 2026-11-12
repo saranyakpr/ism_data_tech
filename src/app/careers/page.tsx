@@ -5,7 +5,7 @@ import Footer from "@/components/layout/Footer";
 import ScrollProgress from "@/components/ui/ScrollProgress";
 import BackToTop from "@/components/ui/BackToTop";
 import JobListings from "@/components/careers/JobListings";
-import { createPublicSupabaseClient } from "@/lib/supabase/public";
+import { sql } from "@/lib/neon";
 import type { PublicJob } from "@/lib/jobs";
 import { ArrowRight, Bus, CalendarDays, Gamepad2, Heart, Lightbulb, Star, TrendingUp, Users } from "lucide-react";
 
@@ -16,21 +16,15 @@ async function PublishedJobListings() {
   let loadError: string | undefined;
 
   try {
-    const supabase = createPublicSupabaseClient();
-    const today = new Date().toISOString().slice(0, 10);
-    const { data, error } = await supabase
-      .from("jobs")
-      .select("id, slug, title, department, location, employment_type, work_mode, experience, description, deadline")
-      .eq("state", "published")
-      .or(`deadline.is.null,deadline.gte.${today}`)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Failed to fetch public career listings:", error.message);
-      loadError = "Please try again later. Our open positions could not be loaded.";
-    } else {
-      jobs = data ?? [];
-    }
+    const rows = await sql`
+      SELECT id, slug, title, department, location, employment_type, work_mode,
+        experience, description, deadline
+      FROM jobs
+      WHERE state = 'published'
+        AND (deadline IS NULL OR deadline >= CURRENT_DATE)
+      ORDER BY created_at DESC
+    ` as PublicJob[];
+    jobs = rows;
   } catch (error) {
     console.error(
       "Failed to initialize public career listings:",
