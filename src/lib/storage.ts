@@ -15,13 +15,7 @@ const region = process.env.AWS_REGION;
 const bucket = process.env.NEON_S3_BUCKET;
 
 function getStorageConfig() {
-  if (
-    !endpoint ||
-    !accessKeyId ||
-    !secretAccessKey ||
-    !region ||
-    !bucket
-  ) {
+  if (!endpoint || !accessKeyId || !secretAccessKey || !region || !bucket) {
     throw new Error("Neon Object Storage configuration is incomplete.");
   }
 
@@ -42,10 +36,10 @@ function getS3Client() {
   });
 }
 
-export async function uploadResume(
+async function uploadObject(
   key: string,
   buffer: Buffer,
-  contentType: string,
+  contentType: string
 ) {
   const config = getStorageConfig();
   const s3 = getS3Client();
@@ -56,11 +50,11 @@ export async function uploadResume(
       Key: key,
       Body: buffer,
       ContentType: contentType,
-    }),
+    })
   );
 }
 
-export async function downloadResume(key: string) {
+async function downloadObject(key: string): Promise<Buffer> {
   const config = getStorageConfig();
   const s3 = getS3Client();
 
@@ -68,17 +62,17 @@ export async function downloadResume(key: string) {
     new GetObjectCommand({
       Bucket: config.bucket,
       Key: key,
-    }),
+    })
   );
 
   if (!response.Body) {
-    throw new Error("Resume file was not found in storage.");
+    throw new Error("File was not found in storage.");
   }
 
   return Buffer.from(await response.Body.transformToByteArray());
 }
 
-export async function deleteResume(key: string) {
+async function deleteObject(key: string) {
   const config = getStorageConfig();
   const s3 = getS3Client();
 
@@ -86,6 +80,40 @@ export async function deleteResume(key: string) {
     new DeleteObjectCommand({
       Bucket: config.bucket,
       Key: key,
-    }),
+    })
   );
+}
+
+// Existing resume functions — preserved
+export async function uploadResume(
+  key: string,
+  buffer: Buffer,
+  contentType: string
+) {
+  return uploadObject(key, buffer, contentType);
+}
+
+export async function downloadResume(key: string) {
+  return downloadObject(key);
+}
+
+export async function deleteResume(key: string) {
+  return deleteObject(key);
+}
+
+// New Life at ISM gallery image functions
+export async function uploadLifeAtISMImage(
+  key: string,
+  buffer: Buffer,
+  contentType: string
+) {
+  return uploadObject(key, buffer, contentType);
+}
+
+export async function downloadLifeAtISMImage(key: string) {
+  return downloadObject(key);
+}
+
+export async function deleteLifeAtISMImage(key: string) {
+  return deleteObject(key);
 }

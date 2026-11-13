@@ -10,6 +10,7 @@ import {
 
 export async function requireAdminApiSession() {
   const config = getAdminAuthConfig();
+
   if (!config) {
     return NextResponse.json(
       { error: "Admin authentication is unavailable." },
@@ -18,6 +19,7 @@ export async function requireAdminApiSession() {
   }
 
   const sessionToken = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
+
   if (!verifyAdminSessionToken(sessionToken, config.sessionSecret)) {
     return NextResponse.json(
       { error: "Admin authentication is required." },
@@ -34,5 +36,6 @@ export function adminApiJson(
 ) {
   const headers = new Headers(init?.headers);
   headers.set("Cache-Control", "no-store");
+
   return NextResponse.json(body, { ...init, headers });
 }

@@ -79,7 +79,7 @@ export async function GET(
         .slice(0, 180) || "resume";
 
     // Return the resume as a downloadable file.
-    return new NextResponse(file, {
+    return new NextResponse(new Uint8Array(file), {
       headers: {
         "Content-Type": application.resume_content_type,
         "Content-Disposition": `attachment; filename="${safeName}"`,
