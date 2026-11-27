@@ -37,10 +37,10 @@ yarn-error.log*
 .vercel
 
 # typescript
-*.tsbuildinfo
+# Note: tsconfig.tsbuildinfo is excluded from active code but preserved in _nextjs-archive/
 next-env.d.ts
 
-# environment variables
+# environment variables — NEVER commit these
 .env
 .env.local
 .env.*.local
@@ -51,3 +51,15 @@ next-env.d.ts
 backups/
 skills-lock.json
 supabase-files.txt
+
+# ── Frontend / Backend split (added during restructure) ──
+
+# Frontend build output and dependencies
+frontend/node_modules/
+frontend/dist/
+
+# Backend dependencies
+backend/node_modules/
+
+# Root-level monolithic node_modules (kept for legacy check scripts)
+# Remove this entry once check-*.mjs scripts are updated to use backend/node_modules

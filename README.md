@@ -1,44 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+﻿# ISM Data Technology
 
-## Getting Started
+Corporate website for ISM Data Technology — a data management and IT-enabled services company.
 
-First, run the development server:
+## Architecture
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+ism-data-tech/
+├── frontend/        Vite + React SPA (public website + admin portal)
+├── backend/         Node.js + Express API server
+├── _nextjs-archive/ Archived Next.js files (not in active use)
+├── backups/         Database backup files
+├── check-*.mjs      Dev utility scripts (run from repo root)
+├── .env.local        ← SECRET: never committed, never displayed
+└── .neon             ← SECRET: never committed
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Quick Start
 
-## Homepage hero video
+You need **two terminals**.
 
-The homepage hero uses its local analytics image as a fallback on mobile and when motion is reduced. To enable the optional desktop video, add a watermark-free MP4 to `public/videos/ism-corporate-hero.mp4` and set `NEXT_PUBLIC_HERO_VIDEO_SRC=/videos/ism-corporate-hero.mp4` in `.env.local`.
+### Terminal 1 — Backend (Express on port 3001)
 
-## Admin access and email notifications
+```bash
+cd backend
+npm install
+node server.js
+# → ISM Backend running at http://localhost:3001
+```
 
-The Careers Admin Portal uses the server-side `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`, and `ADMIN_SESSION_SECRET` settings shown in `.env.local.example`. Keep these values server-only. Career application notifications use Resend with the server-side `RESEND_API_KEY` and `ADMIN_NOTIFICATION_EMAIL` settings. Set the server-side `APP_BASE_URL` to the canonical site origin (for example, `https://ismdatatech.com`) to create absolute links in these emails; it defaults to that production origin when unset. The resume download link requires an authenticated Admin Portal session and does not expose a public storage URL. The initial sender is `onboarding@resend.dev`; Resend's onboarding sender is for testing and may restrict recipient addresses until a sending domain is verified. Resend acceptance does not confirm inbox delivery. The contact form continues to use server-side `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASS`. Application submissions remain successful if an email notification cannot be sent.
+Or with file-watching during development:
+```bash
+cd backend
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Terminal 2 — Frontend (Vite on port 5173)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd frontend
+npm install
+npm run dev
+# → http://localhost:5173
+```
 
-## Learn More
+The Vite dev server proxies all `/api/*` requests to the backend on port 3001.
 
-To learn more about Next.js, take a look at the following resources:
+## Production Build
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+cd frontend
+npm run build
+# Output: frontend/dist/
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Environment Variables
 
-## Deploy on Vercel
+Copy `.env.local.example` to `.env.local` at the repo root and fill in all values.
+The backend loads `.env.local` automatically via `backend/config/env.js` using an
+absolute path resolution — it works regardless of which directory you start the backend from.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Never commit `.env.local` or `.neon`.**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Dev Utility Scripts
+
+Run from the repo root:
+
+```bash
+node check-admin-env.mjs        # Verify admin env vars are configured
+node check-auth-config.mjs      # Validate admin auth config
+node check-hash.mjs             # Check bcrypt hash format
+node check-recent-resume-keys.mjs  # List recent application storage keys
+node check-resume-key.mjs       # Check a specific resume storage key
+```
+
+## API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/jobs` | List published jobs |
+| GET | `/api/jobs/:id` | Get single published job |
+| POST | `/api/careers/apply` | Submit job application |
+| GET | `/api/life-at-ism` | List published gallery photos |
+| POST | `/api/contact` | Submit contact form |
+| POST | `/api/admin/auth/login` | Admin login |
+| POST | `/api/admin/auth/logout` | Admin logout |
+| GET | `/api/admin/overview` | Dashboard stats |
+| GET/POST | `/api/admin/jobs` | Manage jobs |
+| PATCH | `/api/admin/jobs/:id` | Update job |
+| GET | `/api/admin/applications` | List applications |
+| PATCH | `/api/admin/applications/:id` | Update application status |
+| GET | `/api/admin/applications/:id/resume` | Download resume |
+| GET/POST/PATCH/DELETE | `/api/admin/life-at-ism` | Manage gallery |
+
+## Git Remotes
+
+```bash
+git remote -v
+# origin    https://github.com/saranyakpr/ism_data_tech.git
+# personal  https://github.com/niranjana221105/ism-data-tech.git
+```
+
+## Tech Stack
+
+**Frontend:** React 19, Vite 8, React Router 7, Tailwind CSS 3, Framer Motion 14, Lucide React
+**Backend:** Node.js, Express 5, Neon (PostgreSQL), AWS S3-compatible storage, Resend (email), bcryptjs, multer, zod
